@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nodetech Wallet — Chrome Extension for Canton Network</title>
+  <meta name="description" content="A secure Chrome extension wallet for managing Canton Coin (CC). Send, receive, and connect with decentralized applications on Canton Network." />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Nodetech Wallet — Chrome Extension for Canton Network" />
+  <meta property="og:description" content="A secure Chrome extension wallet for managing Canton Coin (CC). Send, receive, and connect with DApps." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://nodetech.network/wallet" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Nodetech Wallet" />
+  <meta name="twitter:description" content="Secure Chrome extension wallet for Canton Network." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230a0e1a'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2300f0ff' font-family='sans-serif' font-weight='bold'>N</text></svg>" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ========== PASSWORD GATE ========== -->
+  <div id="passwordGate" class="pw-gate">
+    <div class="pw-gate-inner">
+      <div class="pw-logo">Node<span style="color: var(--accent-cyan); text-shadow: 0 0 20px rgba(0,240,255,0.5);">tech</span></div>
+      <p class="pw-subtitle">This site is currently under development.</p>
+      <form id="passwordForm" class="pw-form" onsubmit="return false;">
+        <input type="password" id="passwordInput" class="pw-input" placeholder="Enter password" autocomplete="off" autofocus />
+        <button type="submit" id="passwordSubmit" class="pw-submit">Enter</button>
+      </form>
+      <p id="passwordError" class="pw-error" style="display:none;">Incorrect password. Try again.</p>
+    </div>
+  </div>
+  <style>
+    .pw-gate {
+      position: fixed; inset: 0; z-index: 99999;
+      background: var(--bg-primary);
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.4s, visibility 0.4s;
+    }
+    .pw-gate.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .pw-gate-inner { text-align: center; max-width: 380px; padding: 0 24px; }
+    .pw-logo {
+      font-family: var(--font-display); font-weight: 800; font-size: 2.5rem;
+      color: var(--text-primary); margin-bottom: 12px; letter-spacing: -0.02em;
+    }
+    .pw-subtitle { color: var(--text-secondary); font-size: 0.9375rem; margin-bottom: 32px; }
+    .pw-form { display: flex; gap: 8px; }
+    .pw-input {
+      flex: 1; padding: 14px 16px; border-radius: 12px;
+      background: var(--bg-surface); border: 1px solid var(--border-default);
+      color: var(--text-primary); font-family: var(--font-body); font-size: 1rem;
+      outline: none; transition: border-color 0.2s;
+    }
+    .pw-input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 2px rgba(0,240,255,0.1); }
+    .pw-submit {
+      padding: 14px 24px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, var(--accent-cyan), #0080ff);
+      color: #000; font-family: var(--font-display); font-weight: 600;
+      font-size: 1rem; cursor: pointer; transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .pw-submit:hover { box-shadow: 0 4px 20px rgba(0,240,255,0.3); transform: translateY(-1px); }
+    .pw-error { color: #ff4466; font-size: 0.8125rem; margin-top: 16px; }
+    .pw-input.shake { animation: pwShake 0.4s ease; }
+    @keyframes pwShake { 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+  </style>
+  <script>
+    (function() {
+      var h = 'a928b17efce0eb08b00be0ab438c0a7b4f9e1d95cf868ca6da4599066291c2f0';
+      async function sha256(s) {
+        var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+        return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
+      }
+      if (sessionStorage.getItem('pw_ok') === '1') {
+        document.getElementById('passwordGate').classList.add('hidden');
+      }
+      document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var input = document.getElementById('passwordInput');
+        var hash = await sha256(input.value);
+        if (hash === h) {
+          sessionStorage.setItem('pw_ok', '1');
+          document.getElementById('passwordGate').classList.add('hidden');
+        } else {
+          input.classList.add('shake');
+          document.getElementById('passwordError').style.display = 'block';
+          setTimeout(function(){ input.classList.remove('shake'); }, 400);
+          input.value = '';
+          input.focus();
+        }
+      });
+    })();
+  </script>
+
+  <!-- ========== NAVIGATION ========== -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">Node<span class="logo-accent">tech</span></a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#developers">Developers</a></li>
+        <li><a href="#security">Security</a></li>
+        <li class="nav-cta">
+          <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+            <svg class="chrome-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+            Add to Chrome
+          </a>
+        </li>
+      </ul>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#features" class="mobile-link">Features</a>
+    <a href="#how-it-works" class="mobile-link">How It Works</a>
+    <a href="#developers" class="mobile-link">Developers</a>
+    <a href="#security" class="mobile-link">Security</a>
+    <a href="#download" class="mobile-link">Download</a>
+    <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top: 16px;">Add to Chrome</a>
+  </div>
+
+  <!-- ========== HERO ========== -->
+  <section class="hero" id="hero">
+    <div class="constellation" id="constellation"></div>
+    <div class="hero-glow hero-glow-1"></div>
+    <div class="hero-glow hero-glow-2"></div>
+
+    <div class="container hero-inner">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          Built for Canton Network
+        </div>
+        <h1>Your Gateway to<br /><span class="gradient-text">Canton Network</span></h1>
+        <p class="hero-subtitle">
+          A secure Chrome extension wallet for managing Canton Coin (CC). Send, receive, and connect with decentralized applications &mdash; all from your browser.
+        </p>
+        <div class="hero-actions">
+          <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+            <svg class="chrome-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+            Add to Chrome
+          </a>
+          <a href="https://github.com/nodetech" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
+            View on GitHub
+          </a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="stat-value">MV3</div>
+            <div class="stat-label">Manifest V3</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-value">E2E</div>
+            <div class="stat-label">Encrypted</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-value">OIDC</div>
+            <div class="stat-label">Enterprise Auth</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extension Mockup -->
+      <div class="hero-mockup">
+        <div class="mockup-frame float">
+          <div class="mockup-statusbar">
+            <span>Nodetech Wallet</span>
+          </div>
+          <div class="mockup-content">
+            <div class="mockup-header">
+              <div class="mockup-party-name">Test-Default</div>
+              <div class="mockup-party-id">party::canton...x7f3a</div>
+            </div>
+            <div class="mockup-balance-card">
+              <div class="mockup-balance-label">Total Balance</div>
+              <div class="mockup-balance-value">1,250.00 <span style="font-size: 0.875rem; color: var(--accent-cyan);">CC</span></div>
+              <div class="mockup-balance-usd">Canton Coin</div>
+            </div>
+            <div class="mockup-actions">
+              <div class="mockup-action">
+                <div class="mockup-action-icon send">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </div>
+                <div class="mockup-action-label">Send</div>
+              </div>
+              <div class="mockup-action">
+                <div class="mockup-action-icon receive">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                </div>
+                <div class="mockup-action-label">Receive</div>
+              </div>
+              <div class="mockup-action">
+                <div class="mockup-action-icon history">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </div>
+                <div class="mockup-action-label">Activity</div>
+              </div>
+            </div>
+            <div class="mockup-tokens-header">Tokens</div>
+            <div class="mockup-token">
+              <div class="mockup-token-left">
+                <div class="mockup-token-icon">CC</div>
+                <div>
+                  <div class="mockup-token-name">Canton Coin</div>
+                  <div class="mockup-token-network">DevNet</div>
+                </div>
+              </div>
+              <div class="mockup-token-balance">
+                <div class="mockup-token-amount">1,250.00</div>
+                <div class="mockup-token-usd">CC</div>
+              </div>
+            </div>
+            <div class="mockup-token">
+              <div class="mockup-token-left">
+                <div class="mockup-token-icon" style="background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));">NT</div>
+                <div>
+                  <div class="mockup-token-name">Nodetech Token</div>
+                  <div class="mockup-token-network">DevNet</div>
+                </div>
+              </div>
+              <div class="mockup-token-balance">
+                <div class="mockup-token-amount">500.00</div>
+                <div class="mockup-token-usd">NT</div>
+              </div>
+            </div>
+          </div>
+          <div class="mockup-bottomnav">
+            <div class="mockup-nav-item active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              Wallet
+            </div>
+            <div class="mockup-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              Activity
+            </div>
+            <div class="mockup-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              DApps
+            </div>
+            <div class="mockup-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              Settings
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FEATURES ========== -->
+  <section class="section section-alt" id="features">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Features</span>
+        <h2>Everything You Need for<br /><span class="gradient-text">Canton Network</span></h2>
+        <p>A full-featured wallet designed for the Canton ecosystem, built with security and simplicity in mind.</p>
+      </div>
+      <div class="features-grid reveal-stagger">
+        <div class="glass-card hoverable feature-card">
+          <div class="feature-icon cyan">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/><path d="M12 19V5" transform="translate(6 6) rotate(180 6 6)" stroke-opacity="0.4"/></svg>
+          </div>
+          <h3>Send & Receive</h3>
+          <p>Transfer Canton Coin instantly. QR codes for easy sharing, paste addresses, and track every transaction.</p>
+        </div>
+        <div class="glass-card hoverable feature-card">
+          <div class="feature-icon purple">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <h3>Multi-Account</h3>
+          <p>Manage multiple parties and accounts. Switch between DevNet, TestNet, and MainNet environments seamlessly.</p>
+        </div>
+        <div class="glass-card hoverable feature-card">
+          <div class="feature-icon pink">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <h3>DApp Integration</h3>
+          <p>Connect to decentralized applications with one click. The built-in provider API makes blockchain interactions effortless.</p>
+        </div>
+        <div class="glass-card hoverable feature-card">
+          <div class="feature-icon green">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <h3>Real-Time Updates</h3>
+          <p>WebSocket-powered live balance and transaction updates. Always know your current state without manual refresh.</p>
+        </div>
+        <div class="glass-card hoverable feature-card">
+          <div class="feature-icon yellow">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <h3>Transaction History</h3>
+          <p>Complete activity log with date grouping, status badges, and detailed transaction records at your fingertips.</p>
+        </div>
+        <div class="glass-card hoverable feature-card">
+          <div class="feature-icon cyan">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+          </div>
+          <h3>Enterprise Security</h3>
+          <p>Master password encryption, auto-lock, optional transaction passwords, and secure Keycloak OIDC authentication.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== HOW IT WORKS ========== -->
+  <section class="section" id="how-it-works">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Getting Started</span>
+        <h2>Up and Running in Minutes</h2>
+        <p>Three simple steps to start managing your Canton Network assets.</p>
+      </div>
+      <div class="steps reveal-stagger">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h3>Install</h3>
+          <p>Add Nodetech Wallet from the Chrome Web Store. Click the extension icon to get started.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <h3>Set Up</h3>
+          <p>Create a master password, configure your Canton node connection and Keycloak identity provider.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <h3>Start Using</h3>
+          <p>Send and receive CC, connect to DApps, and manage your Canton Network assets securely.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== UI SHOWCASE ========== -->
+  <section class="section section-alt" id="showcase">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Interface</span>
+        <h2>Designed for Clarity</h2>
+        <p>A sleek dark interface with glassmorphism effects, built for focused asset management.</p>
+      </div>
+      <div class="showcase-tabs reveal" role="tablist">
+        <button class="showcase-tab active" data-tab="dashboard" role="tab">Dashboard</button>
+        <button class="showcase-tab" data-tab="send" role="tab">Send</button>
+        <button class="showcase-tab" data-tab="receive" role="tab">Receive</button>
+        <button class="showcase-tab" data-tab="dapps" role="tab">DApps</button>
+        <button class="showcase-tab" data-tab="settings" role="tab">Settings</button>
+      </div>
+      <div class="showcase-content">
+        <!-- Dashboard -->
+        <div class="showcase-panel active" id="tab-dashboard">
+          <div class="showcase-mockup">
+            <div class="mockup-statusbar"><span>Dashboard</span></div>
+            <div class="showcase-mockup-inner">
+              <div style="text-align: center; margin-bottom: 16px;">
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">Test-Default</div>
+                <div style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--text-tertiary);">party::canton...x7f3a</div>
+              </div>
+              <div style="background: linear-gradient(135deg, rgba(0,240,255,0.08), rgba(168,85,247,0.08)); border: 1px solid var(--border-glow); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 0.6875rem; color: var(--text-secondary);">Total Balance</div>
+                <div style="font-family: var(--font-mono); font-size: 1.75rem; font-weight: 700;">1,250.00 <span style="font-size: 0.75rem; color: var(--accent-cyan);">CC</span></div>
+              </div>
+              <div style="display: flex; justify-content: center; gap: 32px; margin-bottom: 20px;">
+                <div style="text-align: center;"><div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(0,240,255,0.12); margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; color: var(--accent-cyan); font-size: 0.875rem;">&uarr;</div><span style="font-size: 0.625rem; color: var(--text-secondary);">Send</span></div>
+                <div style="text-align: center;"><div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(0,255,136,0.12); margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; color: var(--accent-green); font-size: 0.875rem;">&darr;</div><span style="font-size: 0.625rem; color: var(--text-secondary);">Receive</span></div>
+                <div style="text-align: center;"><div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(168,85,247,0.12); margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; color: var(--accent-purple); font-size: 0.875rem;">&bull;</div><span style="font-size: 0.625rem; color: var(--text-secondary);">Activity</span></div>
+              </div>
+              <div style="font-size: 0.6875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Tokens</div>
+              <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 700; color: #000;">CC</div><div><div style="font-size: 0.8125rem; font-weight: 600;">Canton Coin</div><div style="font-size: 0.625rem; color: var(--text-tertiary);">DevNet</div></div></div>
+                <div style="text-align: right; font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 600;">1,250.00</div>
+              </div>
+            </div>
+          </div>
+          <div class="showcase-description">
+            <h3>Dashboard</h3>
+            <p>Your main hub. View total balance, manage multiple accounts, and access quick actions for sending, receiving, and reviewing transaction history.</p>
+          </div>
+        </div>
+
+        <!-- Send -->
+        <div class="showcase-panel" id="tab-send">
+          <div class="showcase-mockup">
+            <div class="mockup-statusbar"><span>Send CC</span></div>
+            <div class="showcase-mockup-inner">
+              <div style="margin-bottom: 20px;">
+                <div style="font-size: 0.6875rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Recipient</div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">Enter party ID...</span>
+                  <span style="font-size: 0.6875rem; color: var(--accent-cyan); cursor: pointer;">Paste</span>
+                </div>
+              </div>
+              <div style="margin-bottom: 24px;">
+                <div style="font-size: 0.6875rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Amount</div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 16px; text-align: center;">
+                  <div style="font-family: var(--font-mono); font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">0.00</div>
+                  <div style="font-size: 0.6875rem; color: var(--text-tertiary);">Available: 1,250.00 CC</div>
+                  <div style="margin-top: 8px;"><span style="font-size: 0.625rem; background: rgba(0,240,255,0.08); color: var(--accent-cyan); padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(0,240,255,0.2);">MAX</span></div>
+                </div>
+              </div>
+              <div style="background: linear-gradient(135deg, var(--accent-cyan), #0080ff); color: #000; text-align: center; padding: 14px; border-radius: 12px; font-weight: 600; font-size: 0.875rem;">Review Transaction</div>
+            </div>
+          </div>
+          <div class="showcase-description">
+            <h3>Send Tokens</h3>
+            <p>Multi-step transaction flow with recipient validation, amount entry with MAX button, confirmation screen, and clear success or error states.</p>
+          </div>
+        </div>
+
+        <!-- Receive -->
+        <div class="showcase-panel" id="tab-receive">
+          <div class="showcase-mockup">
+            <div class="mockup-statusbar"><span>Receive CC</span></div>
+            <div class="showcase-mockup-inner" style="text-align: center;">
+              <h4 style="font-size: 1rem; margin-bottom: 20px; color: var(--text-primary);">Receive Canton Coin</h4>
+              <div style="width: 180px; height: 180px; background: #fff; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; padding: 12px;">
+                <div style="width: 100%; height: 100%; background: repeating-conic-gradient(#000 0% 25%, transparent 0% 50%) 0 0 / 12px 12px; border-radius: 4px; opacity: 0.7;"></div>
+              </div>
+              <div style="font-size: 0.6875rem; color: var(--text-secondary); margin-bottom: 8px;">Your Party ID</div>
+              <div style="font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-tertiary); background: var(--bg-surface); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-default); word-break: break-all; margin-bottom: 20px;">party::canton::devnet...x7f3a</div>
+              <div style="background: linear-gradient(135deg, var(--accent-cyan), #0080ff); color: #000; text-align: center; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.8125rem; margin-bottom: 12px;">Copy Address</div>
+              <div style="font-size: 0.625rem; color: var(--text-tertiary);">Only send Canton Coin (CC) on the same network</div>
+            </div>
+          </div>
+          <div class="showcase-description">
+            <h3>Receive</h3>
+            <p>Auto-generated QR code with your party ID for easy sharing. One-tap copy and network-aware safety warnings.</p>
+          </div>
+        </div>
+
+        <!-- DApps -->
+        <div class="showcase-panel" id="tab-dapps">
+          <div class="showcase-mockup">
+            <div class="mockup-statusbar"><span>Connected Apps</span></div>
+            <div class="showcase-mockup-inner">
+              <h4 style="font-size: 0.9375rem; margin-bottom: 16px; color: var(--text-primary);">Connected Apps</h4>
+              <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 10px; padding: 14px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff;">D</div>
+                    <div>
+                      <div style="font-size: 0.8125rem; font-weight: 600;">DeFi Canton</div>
+                      <div style="font-size: 0.625rem; color: var(--text-tertiary);">defi.canton.network</div>
+                    </div>
+                  </div>
+                  <span style="font-size: 0.5625rem; background: rgba(0,255,136,0.1); color: var(--accent-green); padding: 2px 8px; border-radius: 999px;">Connected</span>
+                </div>
+                <div style="text-align: right;"><span style="font-size: 0.6875rem; color: var(--text-secondary); cursor: pointer;">Disconnect</span></div>
+              </div>
+              <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 10px; padding: 14px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green)); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #000;">S</div>
+                    <div>
+                      <div style="font-size: 0.8125rem; font-weight: 600;">Swap Protocol</div>
+                      <div style="font-size: 0.625rem; color: var(--text-tertiary);">swap.canton.io</div>
+                    </div>
+                  </div>
+                  <span style="font-size: 0.5625rem; background: rgba(0,255,136,0.1); color: var(--accent-green); padding: 2px 8px; border-radius: 999px;">Connected</span>
+                </div>
+                <div style="text-align: right;"><span style="font-size: 0.6875rem; color: var(--text-secondary); cursor: pointer;">Disconnect</span></div>
+              </div>
+              <div style="text-align: center; margin-top: 24px; font-size: 0.6875rem; color: var(--text-tertiary);">
+                DApps connect via <span style="font-family: var(--font-mono); color: var(--accent-cyan);">window.ccProvider</span>
+              </div>
+            </div>
+          </div>
+          <div class="showcase-description">
+            <h3>DApp Manager</h3>
+            <p>View and manage all connected decentralized applications. Approve or revoke connections with explicit permission controls.</p>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="showcase-panel" id="tab-settings">
+          <div class="showcase-mockup">
+            <div class="mockup-statusbar"><span>Settings</span></div>
+            <div class="showcase-mockup-inner">
+              <h4 style="font-size: 0.9375rem; margin-bottom: 16px; color: var(--text-primary);">Settings</h4>
+              <div style="margin-bottom: 12px;">
+                <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Account</div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; margin-bottom: 4px; display: flex; justify-content: space-between;"><span style="font-size: 0.75rem; color: var(--text-secondary);">Party Name</span><span style="font-size: 0.75rem;">Test-Default</span></div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between;"><span style="font-size: 0.75rem; color: var(--text-secondary);">Change Password</span><span style="font-size: 0.75rem; color: var(--accent-cyan);">&rarr;</span></div>
+              </div>
+              <div style="margin-bottom: 12px;">
+                <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Security</div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; margin-bottom: 4px; display: flex; justify-content: space-between;"><span style="font-size: 0.75rem; color: var(--text-secondary);">Auto-Lock Timer</span><span style="font-size: 0.75rem;">5 minutes</span></div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 0.75rem; color: var(--text-secondary);">Require Password for Tx</span><div style="width: 36px; height: 20px; border-radius: 999px; background: var(--accent-cyan); position: relative;"><div style="width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 2px; right: 2px;"></div></div></div>
+              </div>
+              <div>
+                <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">About</div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; margin-bottom: 4px; display: flex; justify-content: space-between;"><span style="font-size: 0.75rem; color: var(--text-secondary);">Version</span><span style="font-family: var(--font-mono); font-size: 0.75rem;">1.0.0</span></div>
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between;"><span style="font-size: 0.75rem; color: var(--text-secondary);">Network</span><span style="font-size: 0.6875rem; background: rgba(0,240,255,0.1); color: var(--accent-cyan); padding: 1px 8px; border-radius: 999px;">DevNet</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="showcase-description">
+            <h3>Settings</h3>
+            <p>Configure security preferences, manage node connections, set auto-lock timers, and view extension details all in one place.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== DEVELOPERS ========== -->
+  <section class="section" id="developers">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">For Developers</span>
+        <h2>Build with <span class="gradient-text">Nodetech Wallet</span></h2>
+        <p>Integrate Canton Network into your web application with a simple JavaScript API.</p>
+      </div>
+      <div class="dev-grid reveal">
+        <div class="dev-info">
+          <h3>The <code style="font-family: var(--font-mono); color: var(--accent-cyan);">ccProvider</code> API</h3>
+          <p>Nodetech Wallet injects a global <code style="font-family: var(--font-mono); color: var(--accent-cyan);">window.ccProvider</code> object into every web page. Use it to connect wallets, query balances, and send transactions — all with user approval through the extension's permission system.</p>
+          <p style="margin-top: var(--space-lg);">The provider fires a <code style="font-family: var(--font-mono); color: var(--accent-cyan);">ccProvider#initialized</code> event when ready, so your DApp can safely wait for the wallet to load before interacting.</p>
+        </div>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <button class="code-copy-btn" data-copy="code-example">Copy</button>
+          </div>
+          <div class="code-body">
+<pre id="code-example"><span class="comment">// Wait for Nodetech Wallet to initialize</span>
+<span class="variable">window</span>.<span class="function">addEventListener</span>(<span class="string">'ccProvider#initialized'</span>, <span class="keyword">async</span> () =&gt; {
+  <span class="keyword">const</span> <span class="variable">provider</span> = <span class="variable">window</span>.<span class="property">ccProvider</span>;
+
+  <span class="comment">// Connect to wallet (prompts user)</span>
+  <span class="keyword">await</span> <span class="variable">provider</span>.<span class="function">connect</span>();
+
+  <span class="comment">// Get the active party ID</span>
+  <span class="keyword">const</span> <span class="variable">partyId</span> = <span class="keyword">await</span> <span class="variable">provider</span>.<span class="function">getPartyId</span>();
+
+  <span class="comment">// Check current balance</span>
+  <span class="keyword">const</span> <span class="variable">balance</span> = <span class="keyword">await</span> <span class="variable">provider</span>.<span class="function">getBalance</span>();
+
+  <span class="comment">// Send a transaction (prompts user)</span>
+  <span class="keyword">await</span> <span class="variable">provider</span>.<span class="function">sendTransaction</span>({
+    <span class="property">to</span>: <span class="string">'recipient-party-id'</span>,
+    <span class="property">amount</span>: <span class="string">'100'</span>
+  });
+
+  <span class="comment">// Listen for events</span>
+  <span class="variable">provider</span>.<span class="function">on</span>(<span class="string">'disconnect'</span>, () =&gt; {
+    <span class="variable">console</span>.<span class="function">log</span>(<span class="string">'Wallet disconnected'</span>);
+  });
+});</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- API Reference Table -->
+      <div class="api-table-wrapper reveal" style="margin-top: var(--space-4xl);">
+        <h3 style="margin-bottom: var(--space-xl);">API Reference</h3>
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Parameters</th>
+              <th>Returns</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>connect()</code></td>
+              <td>&mdash;</td>
+              <td><code>Promise&lt;void&gt;</code></td>
+              <td>Request wallet connection. Prompts user for approval.</td>
+            </tr>
+            <tr>
+              <td><code>disconnect()</code></td>
+              <td>&mdash;</td>
+              <td><code>Promise&lt;void&gt;</code></td>
+              <td>Disconnect from the wallet.</td>
+            </tr>
+            <tr>
+              <td><code>getBalance()</code></td>
+              <td>&mdash;</td>
+              <td><code>Promise&lt;object&gt;</code></td>
+              <td>Retrieve the current CC balance for the active party.</td>
+            </tr>
+            <tr>
+              <td><code>getPartyId()</code></td>
+              <td>&mdash;</td>
+              <td><code>Promise&lt;string&gt;</code></td>
+              <td>Get the active party's Canton party ID.</td>
+            </tr>
+            <tr>
+              <td><code>sendTransaction(params)</code></td>
+              <td><code>{ to: string, amount: string }</code></td>
+              <td><code>Promise&lt;object&gt;</code></td>
+              <td>Request a transaction. User must approve in wallet popup.</td>
+            </tr>
+            <tr>
+              <td><code>on(event, cb)</code></td>
+              <td><code>string, Function</code></td>
+              <td><code>void</code></td>
+              <td>Listen to events: <code>'connect'</code>, <code>'disconnect'</code>.</td>
+            </tr>
+            <tr>
+              <td><code>off(event, cb)</code></td>
+              <td><code>string, Function</code></td>
+              <td><code>void</code></td>
+              <td>Remove an event listener.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SECURITY ========== -->
+  <section class="section section-alt" id="security">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Security</span>
+        <h2>Security First</h2>
+        <p>Your keys, your wallet. Built with enterprise-grade security from the ground up.</p>
+      </div>
+      <div class="security-grid reveal-stagger">
+        <div class="glass-card security-card">
+          <div class="security-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <h3>Local Encryption</h3>
+          <p>Your master password encrypts all data locally. Passwords and keys never leave your device or get transmitted to any server.</p>
+        </div>
+        <div class="glass-card security-card">
+          <div class="security-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <h3>Auto-Lock</h3>
+          <p>Configurable inactivity timer (1, 5, 15, or 30 minutes). The wallet automatically locks when you step away, preventing unauthorized access.</p>
+        </div>
+        <div class="glass-card security-card">
+          <div class="security-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <h3>Transaction Approvals</h3>
+          <p>Every DApp transaction requires explicit user approval through the wallet popup. Optional password requirement adds an extra layer of protection.</p>
+        </div>
+        <div class="glass-card security-card">
+          <div class="security-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          </div>
+          <h3>OIDC Authentication</h3>
+          <p>Enterprise-grade Keycloak OIDC integration for identity verification. Secure token management with automatic refresh and session handling.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== NETWORKS ========== -->
+  <section class="section" id="networks">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Networks</span>
+        <h2>Multi-Network Support</h2>
+        <p>Seamlessly switch between Canton Network environments.</p>
+      </div>
+      <div class="networks reveal-stagger">
+        <div class="glass-card network-card">
+          <span class="network-badge devnet">DevNet</span>
+          <h3>Development</h3>
+          <p>Build and test your DApps in a sandboxed environment with unlimited test tokens.</p>
+        </div>
+        <div class="glass-card network-card">
+          <span class="network-badge testnet">TestNet</span>
+          <h3>Staging</h3>
+          <p>Validate your applications against production-like conditions before going live.</p>
+        </div>
+        <div class="glass-card network-card">
+          <span class="network-badge mainnet">MainNet</span>
+          <h3>Production</h3>
+          <p>Deploy to the live Canton Network with full security and enterprise features enabled.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== CTA ========== -->
+  <section class="section section-alt cta-section" id="download">
+    <div class="container">
+      <span class="section-label">Get Started</span>
+      <h2>Ready to Explore <span class="gradient-text">Canton Network</span>?</h2>
+      <p>Download Nodetech Wallet and start managing your Canton Coin today.</p>
+      <div class="cta-actions">
+        <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+          <svg class="chrome-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+          Add to Chrome &mdash; It's Free
+        </a>
+        <a href="https://github.com/nodetech" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">
+          View Source Code
+        </a>
+      </div>
+      <p class="cta-note">
+        Free and open source <span class="version-badge">v1.0.0</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <div class="footer-logo">Node<span class="logo-accent">tech</span></div>
+          <p>A secure Chrome extension wallet for Canton Network. Built with enterprise-grade security and developer-first design.</p>
+        </div>
+        <div class="footer-links-group">
+          <div class="footer-column">
+            <h4>Product</h4>
+            <ul>
+              <li><a href="#features">Features</a></li>
+              <li><a href="#security">Security</a></li>
+              <li><a href="#download">Download</a></li>
+              <li><a href="#networks">Networks</a></li>
+            </ul>
+          </div>
+          <div class="footer-column">
+            <h4>Developers</h4>
+            <ul>
+              <li><a href="#developers">API Reference</a></li>
+              <li><a href="https://github.com/nodetech" target="_blank" rel="noopener">GitHub</a></li>
+              <li><a href="#developers">Documentation</a></li>
+              <li><a href="#developers">Integration Guide</a></li>
+            </ul>
+          </div>
+          <div class="footer-column">
+            <h4>Legal</h4>
+            <ul>
+              <li><a href="#">Privacy Policy</a></li>
+              <li><a href="#">Terms of Service</a></li>
+              <li><a href="#">Cookie Policy</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Nodetech. Built for Canton Network.</p>
+        <p style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">Chrome Extension &bull; Manifest V3 &bull; Open Source</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
